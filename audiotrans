@@ -1,0 +1,104 @@
+// ==UserScript==
+// @name         Audio Translator
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Translates speech from one language to another using Web Speech API and Google Translate.
+// @author       Your Name
+// @match        *://*/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Настройки
+    const sourceLanguage = 'en-US'; // Язык распознавания (например, английский)
+    const targetLanguage = 'ru';   // Язык перевода (например, русский)
+    const translationAPIKey = 'YOUR_GOOGLE_TRANSLATE_API_KEY'; // Замените на ваш API-ключ
+
+    // Элементы интерфейса
+    const button = document.createElement('button');
+    button.textContent = 'Start Translation';
+    button.style.position = 'fixed';
+    button.style.top = '10px';
+    button.style.right = '10px';
+    button.style.zIndex = '1000';
+    button.style.padding = '10px';
+    button.style.backgroundColor = '#007bff';
+    button.style.color = '#fff';
+    button.style.border = 'none';
+    button.style.borderRadius = '5px';
+    button.style.cursor = 'pointer';
+    document.body.appendChild(button);
+
+    // Инициализация Web Speech API
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = sourceLanguage;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    const synthesis = window.speechSynthesis;
+
+    // Обработчик начала перевода
+    button.addEventListener('click', () => {
+        if (button.textContent === 'Start Translation') {
+            recognition.start();
+            button.textContent = 'Stop Translation';
+            button.style.backgroundColor = '#dc3545';
+        } else {
+            recognition.stop();
+            button.textContent = 'Start Translation';
+            button.style.backgroundColor = '#007bff';
+        }
+    });
+
+    // Обработчик распознавания речи
+    recognition.addEventListener('result', async (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('Recognized:', transcript);
+
+        // Перевод текста
+        const translatedText = await translateText(transcript, targetLanguage);
+        console.log('Translated:', translatedText);
+
+        // Воспроизведение переведенного текста
+        speakText(translatedText, targetLanguage);
+    });
+
+    // Функция перевода текста
+    async function translateText(text, targetLang) {
+        const url = `https://translation.googleapis.com/language/translate/v2?key=${translationAPIKey}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                q: text,
+                target: targetLang,
+            }),
+        });
+        const data = await response.json();
+        return data.data.translations[0].translatedText;
+    }
+
+    // Функция воспроизведения текста
+    function speakText(text, lang) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang;
+        synthesis.speak(utterance);
+    }
+
+    // Обработчик ошибок
+    recognition.addEventListener('error', (event) => {
+        console.error('Speech recognition error:', event.error);
+        button.textContent = 'Start Translation';
+        button.style.backgroundColor = '#007bff';
+    });
+
+    recognition.addEventListener('end', () => {
+        if (button.textContent === 'Stop Translation') {
+            recognition.start(); // Продолжаем слушать
+        }
+    });
+})();
